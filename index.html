@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>報價生成器 (單頁版)</title>
+    <title>報價生成器 (連 Letterhead)</title>
     <style>
         body {
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
@@ -11,39 +11,42 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 50px;
+            padding: 40px;
         }
         .container {
             background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             text-align: center;
-            max-width: 400px;
+            max-width: 450px;
             width: 100%;
         }
+        h2 { color: #333; margin-bottom: 10px; }
+        p { color: #666; font-size: 0.95rem; margin-bottom: 25px; }
         button {
-            background-color: #4CAF50;
+            background-color: #00695c;
             color: white;
             padding: 15px 32px;
             font-size: 16px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             width: 100%;
-            margin-top: 20px;
+            font-weight: bold;
+            transition: background 0.3s;
         }
-        button:hover { background-color: #45a049; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #status { margin-top: 15px; color: #555; font-size: 14px; }
+        button:hover { background-color: #004d40; }
+        button:disabled { background-color: #ccc; cursor: default; }
+        #status { margin-top: 15px; color: #555; font-size: 0.9rem; min-height: 20px; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h2>報價生成器</h2>
-        <p>生成單頁報價單 (Word 格式)</p>
-        <button id="btn" onclick="generateQuote()">生成最新報價</button>
+        <p>包含公司抬頭 (Letterhead) 的單頁 Word 檔</p>
+        <button id="btn" onclick="generateQuote()">生成最新報價單</button>
         <div id="status"></div>
     </div>
 
@@ -55,7 +58,7 @@
             const status = document.getElementById('status');
             
             btn.disabled = true;
-            status.innerText = "正在讀取資料...";
+            status.innerText = "正在讀取 Google Sheet 資料...";
 
             try {
                 const response = await fetch(CSV_URL);
@@ -64,23 +67,23 @@
 
                 // 取得最後一行資料
                 const validRows = rows.filter(r => r.length > 1 && r[0].trim() !== "");
-                if (validRows.length < 2) throw new Error("無效的資料來源");
+                if (validRows.length < 2) throw new Error("Google Sheet 無資料");
                 const lastRow = validRows[validRows.length - 1];
 
-                // 資料映射
+                // 資料對應
                 const data = {
-                    idSuffix: lastRow[0], // A行
-                    school: lastRow[1],   // B行
-                    teacher: lastRow[2],  // C行
-                    course: lastRow[3],   // D行
-                    date: lastRow[4],     // E行
-                    lessons: lastRow[5],  // F行
-                    grade: lastRow[6],    // G行 (文件對應為年級)
-                    price: lastRow[7],    // H行
-                    total: lastRow[9]     // J行
+                    idSuffix: lastRow[0], // A
+                    school: lastRow[1],   // B
+                    teacher: lastRow[2],  // C
+                    course: lastRow[3],   // D
+                    date: lastRow[4],     // E
+                    lessons: lastRow[5],  // F
+                    grade: lastRow[6],    // G
+                    price: lastRow[7],    // H
+                    total: lastRow[9]     // J
                 };
 
-                // 生成日期與編號
+                // 日期與編號生成
                 const today = new Date();
                 const yyyy = today.getFullYear();
                 const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -88,56 +91,65 @@
                 const dateStr = `${yyyy}/${mm}/${dd}`;
                 const quoteNo = `Q-${yyyy}${mm}${dd}${data.idSuffix}`;
 
-                // Word 內容 HTML (嚴格參照 Docx 格式)
+                // Word 內容 (加入 Letterhead 設計)
                 const docContent = `
                     <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
                     <head>
                         <meta charset='utf-8'>
                         <style>
-                            /* 頁面設定 */
                             @page {
-                                size: 595.3pt 841.9pt; /* A4 */
-                                margin: 1.0cm 1.5cm 1.0cm 1.5cm;
+                                size: 595.3pt 841.9pt; /* A4 Size */
+                                margin: 0.8in 0.8in 0.8in 0.8in; /* 頁邊距 */
                             }
                             body { font-family: 'Calibri', 'Microsoft JhengHei', sans-serif; font-size: 11pt; }
                             
-                            /* 表格樣式 */
+                            /* Letterhead 樣式 */
+                            .company-name { font-size: 24pt; font-weight: bold; color: #2E74B5; margin: 0; }
+                            .company-info { font-size: 9pt; color: #555; line-height: 1.2; }
+                            .header-divider { border-bottom: 2px solid #2E74B5; margin-top: 10px; margin-bottom: 20px; }
+
                             table { border-collapse: collapse; width: 100%; }
                             td { vertical-align: top; padding: 2px; }
                             
-                            /* 標頭樣式 */
-                            .header-title { font-size: 20pt; font-weight: bold; color: #365F91; margin-bottom: 10px; }
-                            .info-table td { padding-bottom: 5px; }
+                            .info-table td { padding-bottom: 4px; }
                             
-                            /* 主表格樣式 */
-                            .main-table { margin-top: 10px; border: 1px solid black; }
-                            .main-table th { border: 1px solid black; background-color: #D9D9D9; font-weight: bold; text-align: center; padding: 5px; }
-                            .main-table td { border: 1px solid black; padding: 8px; }
+                            .main-table { margin-top: 20px; border: 1px solid black; }
+                            .main-table th { border: 1px solid black; background-color: #D9D9D9; font-weight: bold; text-align: center; padding: 6px; }
+                            .main-table td { border: 1px solid black; padding: 6px; }
                             
-                            /* 文字樣式 */
                             .bold { font-weight: bold; }
                             .right { text-align: right; }
                             .center { text-align: center; }
-                            .red { color: red; }
-                            
-                            /* 簽名區 */
-                            .signature-section { margin-top: 30px; }
-                            .signature-line { border-bottom: 1px solid black; width: 200px; display: inline-block; margin-bottom: 5px; }
+                            .signature-line { border-bottom: 1px solid black; width: 200px; display: block; margin-top: 50px; margin-bottom: 5px; }
                         </style>
                     </head>
                     <body>
                     
-                        <div>
-                            <span class="header-title">Quotation</span>
+                        <table style="width: 100%;">
+                            <tr>
+                                <td width="60%">
+                                    <div class="company-name">Pi Innovation</div>
+                                </td>
+                                <td width="40%" class="right company-info">
+                                    Unit B3, 4/F, Efficiency House,<br>
+                                    35 Tai Yau Street, San Po Kong, KLN, HK<br>
+                                    九龍新蒲崗大有街35號義發工業大廈4樓B3<br>
+                                    Tel: +852 6704 5711 | Email: info@pi-innovation.com.hk
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="header-divider"></div>
+
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <span style="font-size: 20pt; font-weight: bold; text-decoration: underline;">QUOTATION</span>
                         </div>
-                        <br>
 
                         <table class="info-table">
                             <tr>
-                                <td width="10%" class="bold">To:</td>
-                                <td width="50%">${data.school}</td>
-                                <td width="10%" class="bold right">From:</td>
-                                <td width="30%" class="right">Harry Leung</td>
+                                <td width="12%" class="bold">To:</td>
+                                <td width="48%">${data.school}</td>
+                                <td width="15%" class="bold right">From:</td>
+                                <td width="25%" class="right">Harry Leung</td>
                             </tr>
                             <tr>
                                 <td class="bold">Attn:</td>
@@ -168,8 +180,8 @@
                                     <th width="5%">No.</th>
                                     <th width="20%">Items</th>
                                     <th width="45%">Description</th>
-                                    <th width="10%">Unit Price<br>(HK$)</th>
-                                    <th width="8%">Qty</th>
+                                    <th width="12%">Unit Price<br>(HK$)</th>
+                                    <th width="6%">Qty</th>
                                     <th width="12%">Sub Total<br>(HK$)</th>
                                 </tr>
                             </thead>
@@ -203,7 +215,7 @@
                             </tbody>
                         </table>
 
-                        <div style="margin-top: 15px;">
+                        <div style="margin-top: 20px;">
                             <span class="bold" style="text-decoration: underline;">Remarks:</span>
                             <ol style="margin-top: 5px; padding-left: 20px;">
                                 <li>Please sign and chop at the right concern space for the acceptance of the service/products</li>
@@ -211,30 +223,30 @@
                             </ol>
                         </div>
 
-                        <div class="signature-section">
-                            <table width="100%">
-                                <tr>
-                                    <td width="50%" valign="bottom">
-                                        </td>
-                                    <td width="50%" class="right" valign="top">
-                                        <div style="text-align: left; display: inline-block; width: 200px;">
-                                            <span class="bold">Prepared By</span><br>
-                                            <br><br><br><br>
-                                            <div style="border-bottom: 1px solid black; width: 100%;"></div>
-                                            Harry Leung<br>
-                                            Director<br>
-                                            Date: ${dateStr}
-                                        </div>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
+                        <table style="margin-top: 40px;">
+                            <tr>
+                                <td width="50%" valign="bottom">
+                                    <div style="border-bottom: 1px solid black; width: 200px; margin-bottom: 5px;"></div>
+                                    <span class="bold">Confirmed & Accepted by</span><br>
+                                    Authorized Signature & Chop
+                                </td>
+                                <td width="50%" class="right" valign="top">
+                                    <div style="display: inline-block; text-align: left; width: 200px;">
+                                        <span class="bold">Prepared By</span>
+                                        <div class="signature-line"></div>
+                                        Harry Leung<br>
+                                        Director<br>
+                                        Date: ${dateStr}
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
 
                     </body>
                     </html>
                 `;
 
-                // 下載 Word 檔
+                // 下載
                 const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
@@ -243,7 +255,7 @@
                 link.click();
                 document.body.removeChild(link);
 
-                status.innerText = "下載成功！";
+                status.innerText = "已成功下載報價單！";
                 status.style.color = "green";
 
             } catch (err) {
@@ -255,7 +267,7 @@
             }
         }
 
-        // CSV 解析函數
+        // CSV 解析
         function parseCSV(text) {
             const rows = [];
             text.split('\n').forEach(line => {
@@ -264,14 +276,9 @@
                 let buffer = '';
                 for (let i = 0; i < line.length; i++) {
                     const char = line[i];
-                    if (char === '"') {
-                        inQuote = !inQuote;
-                    } else if (char === ',' && !inQuote) {
-                        row.push(buffer.trim());
-                        buffer = '';
-                    } else {
-                        buffer += char;
-                    }
+                    if (char === '"') { inQuote = !inQuote; } 
+                    else if (char === ',' && !inQuote) { row.push(buffer.trim()); buffer = ''; } 
+                    else { buffer += char; }
                 }
                 row.push(buffer.trim());
                 rows.push(row);
