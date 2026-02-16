@@ -3,291 +3,430 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>報價生成器</title>
+    <title>報價生成器 (DOCX版)</title>
     <style>
-        /* 頁面基礎樣式 (電腦與手機通用) */
-        body {
-            font-family: 'Microsoft JhengHei', Arial, sans-serif;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            max-width: 600px;
-            width: 100%;
-            text-align: center;
-        }
-
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        .status {
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            color: #666;
-            background-color: #eee;
-            display: none; /* 預設隱藏 */
-        }
-
-        button {
-            background-color: #4CAF50; /* 綠色按鈕 */
-            color: white;
-            padding: 15px 32px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 18px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            width: 100%;
-        }
-
-        button:hover {
-            background-color: #45a049;
-        }
-
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-
-        /* 預覽區域樣式 */
-        #preview-area {
-            margin-top: 20px;
-            text-align: left;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
-            display: none;
-        }
-        
-        .data-row { margin-bottom: 5px; }
-        .label { font-weight: bold; color: #555; }
-
+        /* 網頁介面樣式 */
+        body { font-family: 'Microsoft JhengHei', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 500px; width: 90%; text-align: center; }
+        h2 { color: #333; margin-bottom: 1.5rem; }
+        .btn { background: #00695c; color: white; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; width: 100%; transition: 0.2s; font-weight: bold; }
+        .btn:hover { background: #004d40; }
+        .btn:disabled { background: #ccc; cursor: default; }
+        .status { margin-top: 15px; font-size: 0.9rem; color: #666; min-height: 1.2em; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>報價生成器</h1>
-        <p>點擊下方按鈕以提取 Google Sheet 最新資料並下載報價單。</p>
+<div class="card">
+    <h2>報價單生成器</h2>
+    <p>提取最新 Google Sheet 資料並輸出 Word 格式</p>
+    <button class="btn" id="btn" onclick="generateWord()">生成最新報價單</button>
+    <div class="status" id="status"></div>
+</div>
+
+<script>
+    // 資料來源
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgpNUrOTp6zB9AtT5w7JJGV7rzyNiACFU4_Zji6JFflXhyyLbEoi1j247fzab4MkJ1YZlFxlZ-I7m9/pub?output=csv';
+
+    async function generateWord() {
+        const btn = document.getElementById('btn');
+        const status = document.getElementById('status');
         
-        <div id="status" class="status">準備就緒</div>
+        btn.disabled = true;
+        btn.innerText = "處理中...";
+        status.innerText = "正在讀取 Google Sheet...";
 
-        <button id="generateBtn" onclick="generateQuote()">生成最新報價</button>
+        try {
+            const response = await fetch(CSV_URL);
+            const csvText = await response.text();
+            const rows = parseCSV(csvText);
 
-        <div id="preview-area">
-            <h3>資料預覽：</h3>
-            <div id="preview-content"></div>
-        </div>
-    </div>
-
-    <script>
-        // 設定 Google Sheet CSV 連結
-        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgpNUrOTp6zB9AtT5w7JJGV7rzyNiACFU4_Zji6JFflXhyyLbEoi1j247fzab4MkJ1YZlFxlZ-I7m9/pub?output=csv';
-
-        async function generateQuote() {
-            const btn = document.getElementById('generateBtn');
-            const status = document.getElementById('status');
-            const preview = document.getElementById('preview-area');
+            // 取得最後一筆有效資料
+            const validRows = rows.filter(r => r.length > 1 && r[0].trim() !== "");
+            if (validRows.length < 2) throw new Error("表格無資料");
             
-            // UI 更新：鎖定按鈕，顯示讀取中
-            btn.disabled = true;
-            btn.innerText = "讀取資料中...";
-            status.style.display = "block";
-            status.innerText = "正在從 Google Sheet 提取資料...";
-            status.style.backgroundColor = "#e3f2fd";
-            status.style.color = "#0d47a1";
+            const lastRow = validRows[validRows.length - 1];
 
-            try {
-                // 1. 提取 CSV 資料
-                const response = await fetch(SHEET_URL);
-                const data = await response.text();
-                
-                // 2. 解析 CSV (簡單解析，處理逗號)
-                const rows = parseCSV(data);
-                
-                // 取得最後一行有資料的列 (假設最後一行是最新的)
-                // 過濾掉空行
-                const validRows = rows.filter(r => r.length > 1 && r[0].trim() !== "");
-                if (validRows.length < 2) throw new Error("找不到資料");
+            // 對應欄位 (CSV Index: A=0, B=1, ...)
+            const data = {
+                A: lastRow[0], // ID suffix
+                B: lastRow[1], // School
+                C: lastRow[2], // Teacher
+                D: lastRow[3], // Course
+                E: lastRow[4], // Date String
+                F: lastRow[5], // Lesson Count
+                G: lastRow[6], // Student Count/Grade (Mapped to <G>)
+                H: lastRow[7], // Unit Price
+                J: lastRow[9]  // Total Price
+            };
 
-                const lastRow = validRows[validRows.length - 1];
+            // 日期處理
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}/${mm}/${dd}`; // For <K>
+            const quoteId = `Q-${yyyy}${mm}${dd}${data.A}`; // For <Date-A>
 
-                // 3. 映射資料 (根據您的描述)
-                // CSV 索引通常從 0 開始
-                // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9
-                
-                const rawId = lastRow[0]; // A行
-                const school = lastRow[1]; // B行
-                const teacher = lastRow[2]; // C行
-                const course = lastRow[3]; // D行
-                const dateStr = lastRow[4]; // E行 (上課日期)
-                const lessonCount = lastRow[5]; // F行
-                const studentCount = lastRow[6]; // G行
-                const pricePerLesson = lastRow[7]; // H行
-                // 跳過 I 行
-                const totalPrice = lastRow[9]; // J行
-
-                // 4. 生成報價編號邏輯
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const dateCode = `${yyyy}${mm}${dd}`;
-                
-                // 整合後的報價 Number <Date-A>
-                const finalQuoteNumber = `${dateCode}${rawId}`;
-
-                // 更新預覽
-                document.getElementById('preview-content').innerHTML = `
-                    <div class="data-row"><span class="label">報價單號:</span> ${finalQuoteNumber}</div>
-                    <div class="data-row"><span class="label">學校:</span> ${school}</div>
-                    <div class="data-row"><span class="label">課程:</span> ${course}</div>
-                    <div class="data-row"><span class="label">總價:</span> ${totalPrice}</div>
-                `;
-                preview.style.display = 'block';
-
-                // 5. 製作 Word 檔案內容 (HTML 格式偽裝成 Word)
-                // 這裡我們建立一個符合 Google Doc 參考格式的 HTML 模板
-                const docContent = `
-                    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                    <head><meta charset='utf-8'><title>報價單</title>
+            // 建立 Word HTML 內容
+            const docContent = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset='utf-8'>
                     <style>
-                        body { font-family: 'MingLiU', 'Microsoft JhengHei', sans-serif; font-size: 12pt; }
-                        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-                        td, th { border: 1px solid black; padding: 8px; text-align: center; }
-                        .header { text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 20px; }
-                        .info-section { margin-bottom: 20px; }
-                        .right-align { text-align: right; }
+                        @page Section1 { size: 595.3pt 841.9pt; margin: 1.0in 1.0in 1.0in 1.0in; }
+                        div.Section1 { page: Section1; }
+                        body { font-family: 'Times New Roman', 'Microsoft JhengHei', sans-serif; font-size: 11pt; }
+                        table { border-collapse: collapse; width: 100%; }
+                        td, th { vertical-align: top; padding: 4px; }
+                        .header-table td { border: none; padding: 2px; }
+                        .main-table { border: 1px solid black; margin-top: 10px; }
+                        .main-table td, .main-table th { border: 1px solid black; text-align: center; }
+                        .main-table .desc { text-align: left; }
                         .bold { font-weight: bold; }
+                        .page-break { page-break-before: always; }
+                        .title { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 20px; text-decoration: underline; }
+                        .sub-title { font-size: 14pt; font-weight: bold; margin-top: 20px; margin-bottom: 10px; }
+                        .content-table td { border: 1px solid #ccc; padding: 8px; }
+                        .content-table th { background-color: #eee; border: 1px solid #ccc; padding: 8px; font-weight: bold; }
                     </style>
-                    </head>
-                    <body>
-                        <div class="header">課程報價單</div>
-                        
-                        <div class="info-section">
-                            <p><span class="bold">報價單編號：</span> ${finalQuoteNumber}</p>
-                            <p><span class="bold">日期：</span> ${yyyy}/${mm}/${dd}</p>
-                            <p><span class="bold">致：</span> ${school}</p>
-                            <p><span class="bold">負責老師：</span> ${teacher}</p>
+                </head>
+                <body>
+                <div class="Section1">
+                    
+                    <div style="text-align:right; margin-bottom: 20px;">
+                        <h1 style="margin:0; font-size: 24pt; color: #333;">QUOTATION</h1>
+                    </div>
+
+                    <table class="header-table" style="width: 100%;">
+                        <tr>
+                            <td style="width: 10%;" class="bold">To:</td>
+                            <td style="width: 50%; border-bottom: 1px solid #000;">${data.B}</td>
+                            <td style="width: 10%; text-align:right;" class="bold">From:</td>
+                            <td style="width: 30%;">Harry Leung</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">Attn:</td>
+                            <td style="border-bottom: 1px solid #000;">${data.C}</td>
+                            <td style="text-align:right;" class="bold">Date:</td>
+                            <td>${todayStr}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2"></td>
+                            <td style="text-align:right;" class="bold">Email:</td>
+                            <td>harryleung@pi-innovation.com.hk</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2"></td>
+                            <td style="text-align:right;" class="bold">Quotation #:</td>
+                            <td>${quoteId}</td>
+                        </tr>
+                    </table>
+
+                    <br>
+                    <p>The following table:</p>
+
+                    <table class="main-table">
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="width:5%;">No.</th>
+                            <th style="width:20%;">Items</th>
+                            <th style="width:40%;">Description</th>
+                            <th style="width:12%;">Unit Price<br>(HK$)</th>
+                            <th style="width:8%;">Qty</th>
+                            <th style="width:15%;">Sub Total<br>(HK$)</th>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>${data.D}</td>
+                            <td class="desc">
+                                <span class="bold">課堂資料</span><br>
+                                課堂日期：${data.E}<br>
+                                課堂堂數：${data.F}堂<br>
+                                課堂時間：待定<br>
+                                每堂課時：1.5小時<br>
+                                學生年級：${data.G}<br>
+                                學生人數：20人<br>
+                                課堂內容：請參閱下頁課程內容<br><br>
+                                <span class="bold">本公司可提供</span><br>
+                                導師人數：1名導師及1名助教<br>
+                                如需加堂或帶隊參賽，費用按每堂收費收取<br>
+                                如需購買比賽相關材料/道具，費用將額外收取<br><br>
+                                <span class="bold">需由貴校提供</span><br>
+                                無人機教材<br>
+                                平板電腦以供操控及編程無人機用途
+                            </td>
+                            <td>${data.H}<br>(每堂)</td>
+                            <td>${data.F}<br>(堂)</td>
+                            <td>${data.J}</td>
+                        </tr>
+                    </table>
+
+                    <div style="margin-top: 30px;">
+                        <p class="bold" style="text-decoration: underline;">Remarks:</p>
+                        <ol>
+                            <li>Please sign and chop at the right concern space for the acceptance of the service/products</li>
+                            <li>This quotation is valid until 2 months after the issued date stated on this quotation</li>
+                        </ol>
+                    </div>
+
+                    <div style="margin-top: 50px; display: flex; justify-content: space-between;">
+                         <div style="width: 45%;">
+                            </div>
+                        <div style="width: 45%; text-align: left;">
+                            <p class="bold">Prepared By</p>
+                            <br><br><br> <div style="border-bottom: 1px solid black; width: 200px;"></div>
+                            <p>Harry Leung<br>Director<br>Date: ${todayStr}</p>
                         </div>
+                    </div>
 
-                        <br>
-                        <p>茲附上課程報價如下：</p>
+                    <div class="page-break"></div>
+                    
+                    <div class="title">無人機校隊班 課程內容</div>
+                    <p style="text-align: center;">(此為參考之計劃書，實際內容可商討)</p>
+                    
+                    <p><span class="bold">課程特色：</span><br>
+                    本課程結合實體飛行與積木式編程，引導學生從基礎遙控操作（起降、航拍、特技模式）進階至任務編程（三維座標、曲線飛行、障礙賽）。透過階段競賽設計（遙控賽→編程挑戰），培養空間思維與邏輯能力，並融入香港無人機法規建立安全意識。課程整合物理原理（飛行力學）與數學應用（座標計算），讓學生在破解任務中掌握計算思維與問題解決力，為未來無人機創新應用奠定基礎，並協助訓練學生參加國際青少年創科教育大賽-無人機編程障礙賽。</p>
 
-                        <table>
-                            <tr style="background-color: #f0f0f0;">
-                                <th>項目</th>
-                                <th>內容詳情</th>
+                    <table class="content-table" style="width:100%; margin-top:20px;">
+                        <thead>
+                            <tr>
+                                <th style="width:10%">課堂</th>
+                                <th style="width:20%">主題</th>
+                                <th style="width:70%">內容</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td rowspan="2">1</td>
+                                <td>認識無人機</td>
+                                <td>
+                                    <ul>
+                                        <li>介紹航拍機（PPT），包括：無人機定義/分類/功能/歷史</li>
+                                        <li>認識無人機在香港的法例</li>
+                                        <li>介紹無人機結構/配件/飛行原理</li>
+                                        <li>認識如何用Wi-Fi連接無人機</li>
+                                    </ul>
+                                </td>
                             </tr>
                             <tr>
-                                <td>課程名稱</td>
-                                <td>${course}</td>
+                                <td>遙控飛行</td>
+                                <td>
+                                    <ul>
+                                        <li>了解真實航拍時注意事項</li>
+                                        <li>介紹應用程式介面</li>
+                                        <li>介紹無人機運作模式（包括遙控器使用）</li>
+                                    </ul>
+                                </td>
                             </tr>
                             <tr>
-                                <td>上課日期</td>
-                                <td>${dateStr}</td>
+                                <td>2</td>
+                                <td>障礙物比賽</td>
+                                <td>
+                                    <ul>
+                                        <li>認識比賽時會使用到的障礙物，如刀旗</li>
+                                        <li>進行比賽，分為個人賽及分組賽</li>
+                                        <li>使用TOF傳感器，令無人機自動避障</li>
+                                    </ul>
+                                </td>
                             </tr>
                             <tr>
-                                <td>課堂數量</td>
-                                <td>${lessonCount} 堂</td>
+                                <td>3-4</td>
+                                <td>飛行實訓</td>
+                                <td>
+                                    <ul>
+                                        <li>進行飛行模式實訓：- 定點飛行 （A點至B點）- 正方形/長方形飛行- 順時針轉圈/逆時針轉圈- 水平8字飛行</li>
+                                        <li>分組進行比賽</li>
+                                    </ul>
+                                </td>
                             </tr>
                             <tr>
-                                <td>學生人數</td>
-                                <td>${studentCount} 人</td>
+                                <td>5-6</td>
+                                <td>編程模式</td>
+                                <td>
+                                    <ul>
+                                        <li>嘗試進行飛行定位</li>
+                                        <li>進行飛行任務</li>
+                                        <li>學生分組以無人機編程模式穿越障礙物關卡，測試學生駕駛無人機的準確度及速度</li>
+                                        <li>進行不同障礙物地圖的比賽</li>
+                                    </ul>
+                                </td>
                             </tr>
                             <tr>
-                                <td>單堂費用</td>
-                                <td>${pricePerLesson}</td>
+                                <td>7-10</td>
+                                <td>比賽重點訓練</td>
+                                <td>
+                                    <ul>
+                                        <li>認識比賽規則</li>
+                                        <li>手動練習競速，學習加速與轉彎，設定基本賽道並引入時間挑戰</li>
+                                        <li>設計多層賽道挑戰</li>
+                                        <li>根據比賽規則調整練習策略</li>
+                                    </ul>
+                                </td>
                             </tr>
-                            <tr>
-                                <td class="bold">總費用</td>
-                                <td class="bold">${totalPrice}</td>
-                            </tr>
-                        </table>
+                        </tbody>
+                    </table>
 
-                        <br><br>
-                        <div class="right-align">
-                            <p>簽署 / 蓋章：___________________</p>
-                        </div>
-                    </body>
-                    </html>
-                `;
+                    <div class="page-break"></div>
+                    <div class="title">過往學校於無人機比賽中得獎專案</div>
 
-                // 6. 觸發下載
-                const blob = new Blob(['\ufeff', docContent], {
-                    type: 'application/msword'
-                });
-                
-                const downloadLink = document.createElement("a");
-                document.body.appendChild(downloadLink);
-                
-                // 檔名設定
-                downloadLink.href = URL.createObjectURL(blob);
-                downloadLink.download = `報價單_${finalQuoteNumber}.doc`;
-                
-                status.innerText = "生成成功！檔案下載中...";
-                status.style.backgroundColor = "#dff0d8";
-                status.style.color = "#3c763d";
-                
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
+                    <table class="content-table" style="margin-bottom: 20px;">
+                        <tr>
+                            <td class="bold" style="width: 20%;">學校：</td>
+                            <td>馬頭涌官立小學</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">參與比賽：</td>
+                            <td>「夢一號」—空中先鋒挑戰賽(小組賽) 2025</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">獎項：</td>
+                            <td>冠軍, 優異獎</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">參考圖片：</td>
+                            <td>(請參考原文件圖片)</td>
+                        </tr>
+                    </table>
 
-            } catch (error) {
-                console.error(error);
-                status.innerText = "發生錯誤：" + error.message;
-                status.style.backgroundColor = "#f2dede";
-                status.style.color = "#a94442";
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "生成最新報價";
-            }
+                    <table class="content-table" style="margin-bottom: 20px;">
+                        <tr>
+                            <td class="bold" style="width: 20%;">學校：</td>
+                            <td>十八鄉鄉事委員會公益社小學</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">參與比賽：</td>
+                            <td>第 4 屆香港青少年航天創新大賽</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">獎項：</td>
+                            <td>無人機操作技能挑戰賽（小學組） —— 二等獎 及 港幣三千元獎金</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">課程簡介：</td>
+                            <td>教授Tello Talent無人機的操作技能及編程技巧，訓練學生參加無人機賽事。</td>
+                        </tr>
+                         <tr>
+                            <td class="bold">參考圖片：</td>
+                            <td>(請參考原文件圖片)</td>
+                        </tr>
+                    </table>
+
+                     <table class="content-table" style="margin-bottom: 20px;">
+                        <tr>
+                            <td class="bold" style="width: 20%;">學校：</td>
+                            <td>中華基督教會何福堂小學</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">參與比賽：</td>
+                            <td>中華基督教會香港區會小學校長會無人機挑戰賽2024</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">獎項：</td>
+                            <td>編程障礙賽 —— 冠軍, 穿越飛行賽 —— 優異獎</td>
+                        </tr>
+                         <tr>
+                            <td class="bold">參考圖片：</td>
+                            <td>(請參考原文件圖片)</td>
+                        </tr>
+                    </table>
+
+                    <div class="page-break"></div>
+                    <div class="title">附件一：學生作品得獎紀錄 (節錄)</div>
+                    
+                    <p class="bold">參賽類別：發明品</p>
+                    <table class="content-table">
+                         <thead><tr style="background:#eee;"><th>年份</th><th>比賽</th><th>獎項</th></tr></thead>
+                         <tbody>
+                            <tr><td>2025</td><td>ROBOFEST機械人大賽(國際賽)</td><td>RoboMed 初級組冠軍</td></tr>
+                            <tr><td></td><td>ROBOFEST機械人大賽(香港區選拔賽)</td><td>RoboMed初級組冠軍</td></tr>
+                            <tr><td></td><td>第二十七屆「常識百搭」小學STEM探究展覽</td><td>評判大奬及傑出奬</td></tr>
+                            <tr><td></td><td>IYSEC 國際青少年創科教育大賽 2025</td><td>冠、亞、季軍 (AI-IoT)</td></tr>
+                            <tr><td></td><td>第七屆大灣區STEAM卓越獎2025（香港）</td><td>銀獎</td></tr>
+                            <tr><td></td><td>少訊創新科技大賽2024-25</td><td>亞軍、最佳智慧城市獎</td></tr>
+                            <tr><td>2024</td><td>GWIN 2024智慧城市物聯網機電應用挑戰賽</td><td>亞軍(小學組)</td></tr>
+                         </tbody>
+                    </table>
+                    
+                    <br>
+                    <p class="bold">參賽類別：無人機</p>
+                    <table class="content-table">
+                         <thead><tr style="background:#eee;"><th>年份</th><th>比賽</th><th>獎項</th></tr></thead>
+                         <tbody>
+                            <tr><td>2025</td><td>第四屆全國青少年航天創新大賽</td><td>三等獎</td></tr>
+                            <tr><td></td><td>第四屆香港青少年航天創新大賽</td><td>三等獎、二等獎</td></tr>
+                            <tr><td>2024</td><td>中華基督教會香港區會小學校長會無人機挑戰賽2024</td><td>編程障礙賽冠軍、穿越飛行賽優異獎</td></tr>
+                         </tbody>
+                    </table>
+
+                    <br>
+                    <p>更多得獎項目請參閱：https://www.pi-innovation.com.hk/about-us-and-our-partners-zh/</p>
+
+                    <div class="page-break"></div>
+                    <div class="title">附件二：機構資料</div>
+                    <p class="bold">機構簡介</p>
+                    <p>Pi Innovation成員早於2012年開始，在香港學界致力推廣科技教育，多年來與不同的學校及教育機構合作，為莘莘學子舉辦不同的科技教育活動及課程。</p>
+                    <p>本機構於學界服務超過十三年，具有豐富的教學經驗外，還與各大機構例如香港中文大學、民政事務署及各中小學維持長遠的合作關係。本團隊導師均具有豐富實戰經驗，曾在香港學界比賽屢獲殊榮，更代表香港出戰上海、奧地利、新加坡等機械人世界賽，並曾獲取亞軍之佳績。</p>
+                    
+                    <p class="bold">導師資歷：</p>
+                    <ul>
+                        <li>機械人國際大賽得主</li>
+                        <li>多次代表香港出戰各項世界級賽事</li>
+                        <li>機械人大賽港隊代表學校導師</li>
+                        <li>多項本地機械人賽事主裁判</li>
+                        <li>香港專業教育學院主辦機械人科技會議及工作坊的講者</li>
+                    </ul>
+
+                     <div class="page-break"></div>
+                    <div class="title">附件三：2023-2025學年曾任教之合作機構及學校(節錄)</div>
+                    <p>聖類斯中學(小學部), 英皇書院同學會小學, 路德會沙崙學校, 順德聯誼總會李金小學, 香海正覺蓮社佛教正慧小學, 香港嘉諾撒學校, 大埔舊墟公立學校(寶湖道), 馬鞍山靈糧小學, 馬頭涌官立小學 (紅磡灣), 馬頭涌官立小學, 葛量洪校友會黃埔學校, 青山天主教小學, 聖公會聖約翰曾肇添小學, 錦田公立蒙養學校, 官立嘉道理爵士小學, 聖文德天主教小學, 天主教聖母聖心小學, 馬鞍山信義學校, 十八鄉鄉事委員會公益社小學, 番禺會所華仁小學, 中華基督教會基慧小學, 聖公會仁立小學, 漢華中學 (小學部), 香港潮商學校, 鳳溪創新小學</p>
+                    <p>保良局雨川小學, 聖博德天主教小學(蒲崗村道), 東華三院港九電器商聯會小學, 瑪利諾神父教會學校(小學部), 道教青松小學, 荔枝角天主教小學, 塘尾道官立小學, 東華三院李東海小學, 秀茂坪天主教小學, 香港培道小學, 聖公會呂明才紀念小學, 沙田圍胡素貞博士紀念學校, 慈雲山天主教小學, 丹拿山循道學校, 世界龍崗黃耀南小學, 中華基督教會何福堂小學, 保良局朱正賢小學, 保良局莊啟程第二小學, 保良局陳溢小學, 基督教粉嶺神召會小學, 天主教聖華小學, 將軍澳官立中學, 將軍澳官立小學, 東華三院曾憲備小學, 東華三院李賜豪小學, 梅窩學校, 海壩街官立小學, 獻主會小學, 聖嘉祿學校, 粉嶺公立學校, 聖公會主愛小學, 聖公會基恩小學, 聖公會阮鄭夢芹小學, 聖公會阮鄭夢芹銀禧小學, 聖愛德華天主教小學, 聖母無玷聖心學校, 聖若翰天主教小學</p>
+                    <p class="bold">中學及其他機構</p>
+                    <p>聖母無玷聖心書院, 聖芳濟各書院, 靈糧堂怡文中學, 新會商會中學, 保良局甲子何玉清中學, 聖公會諸聖中學, 馬鞍山祟真中學, 東華三院呂潤財紀念中學, 聖安當女書院, 鳳溪第一中學, 將軍澳官立中學</p>
+                    <p>中西區民政事務處, 紅十字會醫院學校, 香港耀能協會賽馬會田綺玲學校, 聖雅各福群會, 香港青年協會, 香港中華基督教青年會</p>
+
+                </div>
+                </body>
+                </html>
+            `;
+
+            // 下載檔案
+            const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Quote_${quoteId}.doc`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            status.innerText = "下載已開始！";
+            status.style.color = "green";
+
+        } catch (error) {
+            console.error(error);
+            status.innerText = "錯誤: " + error.message;
+            status.style.color = "red";
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "生成最新報價單";
         }
+    }
 
-        // 簡單的 CSV 解析器 (處理逗號分隔，忽略引號內的逗號較為複雜，這裡使用簡易版)
-        function parseCSV(text) {
-            // 處理換行符號
-            const lines = text.split(/\r\n|\n/);
-            return lines.map(line => {
-                // 如果欄位內有逗號通常會用引號包起來，這裡做簡易分割
-                // 若您的資料非常複雜包含引號，建議引入 PapaParse 庫
-                // 下面這個正則表達式可以處理被雙引號包住的逗號
-                const regex = /(?:,|\n|^)("(?:(?:"")*|[^"]*)*"|[^",\n]*|(?:\n|$))/g;
-                const result = [];
-                let matches;
-                while ((matches = regex.exec(line)) !== null) {
-                    if (matches.index === regex.lastIndex) regex.lastIndex++;
-                    let val = matches[1];
-                    // 移除開頭的逗號
-                    if (line.charAt(matches.index) === ',') {
-                       // val 已經正確抓取，不需額外動作，但需注意正則邏輯
-                    }
-                    // 移除引號
-                    if (val && val.startsWith('"') && val.endsWith('"')) {
-                        val = val.slice(1, -1).replace(/""/g, '"');
-                    }
-                    if(val !== undefined) result.push(val.trim());
-                }
-                // 由於簡易正則可能會多抓一個空值，這裡做個簡單的 split 作為備案 (如果上面的太複雜)
-                // 針對您的 Google Sheet 格式，直接 split(',') 通常就夠用，除非課程名稱內有逗號
-                return line.split(','); 
-            });
-        }
-    </script>
+    // CSV 解析工具
+    function parseCSV(text) {
+        const regex = /(?:,|\n|^)("(?:(?:"")*|[^"]*)*"|[^",\n]*|(?:\n|$))/g;
+        const rows = [];
+        let row = [];
+        let matches;
+        text.split('\n').forEach(line => {
+             // 簡易分割 (應對無特殊符號的情況)
+             row = line.split(',');
+             // 移除引號
+             row = row.map(cell => cell.replace(/^"|"$/g, '').replace(/""/g, '"'));
+             rows.push(row);
+        });
+        return rows;
+    }
+</script>
+
 </body>
 </html>
