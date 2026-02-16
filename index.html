@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>報價生成器</title>
+    <style>
+        /* 頁面基礎樣式 (電腦與手機通用) */
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            color: #666;
+            background-color: #eee;
+            display: none; /* 預設隱藏 */
+        }
+
+        button {
+            background-color: #4CAF50; /* 綠色按鈕 */
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* 預覽區域樣式 */
+        #preview-area {
+            margin-top: 20px;
+            text-align: left;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            display: none;
+        }
+        
+        .data-row { margin-bottom: 5px; }
+        .label { font-weight: bold; color: #555; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>報價生成器</h1>
+        <p>點擊下方按鈕以提取 Google Sheet 最新資料並下載報價單。</p>
+        
+        <div id="status" class="status">準備就緒</div>
+
+        <button id="generateBtn" onclick="generateQuote()">生成最新報價</button>
+
+        <div id="preview-area">
+            <h3>資料預覽：</h3>
+            <div id="preview-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // 設定 Google Sheet CSV 連結
+        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgpNUrOTp6zB9AtT5w7JJGV7rzyNiACFU4_Zji6JFflXhyyLbEoi1j247fzab4MkJ1YZlFxlZ-I7m9/pub?output=csv';
+
+        async function generateQuote() {
+            const btn = document.getElementById('generateBtn');
+            const status = document.getElementById('status');
+            const preview = document.getElementById('preview-area');
+            
+            // UI 更新：鎖定按鈕，顯示讀取中
+            btn.disabled = true;
+            btn.innerText = "讀取資料中...";
+            status.style.display = "block";
+            status.innerText = "正在從 Google Sheet 提取資料...";
+            status.style.backgroundColor = "#e3f2fd";
+            status.style.color = "#0d47a1";
+
+            try {
+                // 1. 提取 CSV 資料
+                const response = await fetch(SHEET_URL);
+                const data = await response.text();
+                
+                // 2. 解析 CSV (簡單解析，處理逗號)
+                const rows = parseCSV(data);
+                
+                // 取得最後一行有資料的列 (假設最後一行是最新的)
+                // 過濾掉空行
+                const validRows = rows.filter(r => r.length > 1 && r[0].trim() !== "");
+                if (validRows.length < 2) throw new Error("找不到資料");
+
+                const lastRow = validRows[validRows.length - 1];
+
+                // 3. 映射資料 (根據您的描述)
+                // CSV 索引通常從 0 開始
+                // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9
+                
+                const rawId = lastRow[0]; // A行
+                const school = lastRow[1]; // B行
+                const teacher = lastRow[2]; // C行
+                const course = lastRow[3]; // D行
+                const dateStr = lastRow[4]; // E行 (上課日期)
+                const lessonCount = lastRow[5]; // F行
+                const studentCount = lastRow[6]; // G行
+                const pricePerLesson = lastRow[7]; // H行
+                // 跳過 I 行
+                const totalPrice = lastRow[9]; // J行
+
+                // 4. 生成報價編號邏輯
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                const dateCode = `${yyyy}${mm}${dd}`;
+                
+                // 整合後的報價 Number <Date-A>
+                const finalQuoteNumber = `${dateCode}${rawId}`;
+
+                // 更新預覽
+                document.getElementById('preview-content').innerHTML = `
+                    <div class="data-row"><span class="label">報價單號:</span> ${finalQuoteNumber}</div>
+                    <div class="data-row"><span class="label">學校:</span> ${school}</div>
+                    <div class="data-row"><span class="label">課程:</span> ${course}</div>
+                    <div class="data-row"><span class="label">總價:</span> ${totalPrice}</div>
+                `;
+                preview.style.display = 'block';
+
+                // 5. 製作 Word 檔案內容 (HTML 格式偽裝成 Word)
+                // 這裡我們建立一個符合 Google Doc 參考格式的 HTML 模板
+                const docContent = `
+                    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                    <head><meta charset='utf-8'><title>報價單</title>
+                    <style>
+                        body { font-family: 'MingLiU', 'Microsoft JhengHei', sans-serif; font-size: 12pt; }
+                        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+                        td, th { border: 1px solid black; padding: 8px; text-align: center; }
+                        .header { text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 20px; }
+                        .info-section { margin-bottom: 20px; }
+                        .right-align { text-align: right; }
+                        .bold { font-weight: bold; }
+                    </style>
+                    </head>
+                    <body>
+                        <div class="header">課程報價單</div>
+                        
+                        <div class="info-section">
+                            <p><span class="bold">報價單編號：</span> ${finalQuoteNumber}</p>
+                            <p><span class="bold">日期：</span> ${yyyy}/${mm}/${dd}</p>
+                            <p><span class="bold">致：</span> ${school}</p>
+                            <p><span class="bold">負責老師：</span> ${teacher}</p>
+                        </div>
+
+                        <br>
+                        <p>茲附上課程報價如下：</p>
+
+                        <table>
+                            <tr style="background-color: #f0f0f0;">
+                                <th>項目</th>
+                                <th>內容詳情</th>
+                            </tr>
+                            <tr>
+                                <td>課程名稱</td>
+                                <td>${course}</td>
+                            </tr>
+                            <tr>
+                                <td>上課日期</td>
+                                <td>${dateStr}</td>
+                            </tr>
+                            <tr>
+                                <td>課堂數量</td>
+                                <td>${lessonCount} 堂</td>
+                            </tr>
+                            <tr>
+                                <td>學生人數</td>
+                                <td>${studentCount} 人</td>
+                            </tr>
+                            <tr>
+                                <td>單堂費用</td>
+                                <td>${pricePerLesson}</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">總費用</td>
+                                <td class="bold">${totalPrice}</td>
+                            </tr>
+                        </table>
+
+                        <br><br>
+                        <div class="right-align">
+                            <p>簽署 / 蓋章：___________________</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                // 6. 觸發下載
+                const blob = new Blob(['\ufeff', docContent], {
+                    type: 'application/msword'
+                });
+                
+                const downloadLink = document.createElement("a");
+                document.body.appendChild(downloadLink);
+                
+                // 檔名設定
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = `報價單_${finalQuoteNumber}.doc`;
+                
+                status.innerText = "生成成功！檔案下載中...";
+                status.style.backgroundColor = "#dff0d8";
+                status.style.color = "#3c763d";
+                
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+            } catch (error) {
+                console.error(error);
+                status.innerText = "發生錯誤：" + error.message;
+                status.style.backgroundColor = "#f2dede";
+                status.style.color = "#a94442";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "生成最新報價";
+            }
+        }
+
+        // 簡單的 CSV 解析器 (處理逗號分隔，忽略引號內的逗號較為複雜，這裡使用簡易版)
+        function parseCSV(text) {
+            // 處理換行符號
+            const lines = text.split(/\r\n|\n/);
+            return lines.map(line => {
+                // 如果欄位內有逗號通常會用引號包起來，這裡做簡易分割
+                // 若您的資料非常複雜包含引號，建議引入 PapaParse 庫
+                // 下面這個正則表達式可以處理被雙引號包住的逗號
+                const regex = /(?:,|\n|^)("(?:(?:"")*|[^"]*)*"|[^",\n]*|(?:\n|$))/g;
+                const result = [];
+                let matches;
+                while ((matches = regex.exec(line)) !== null) {
+                    if (matches.index === regex.lastIndex) regex.lastIndex++;
+                    let val = matches[1];
+                    // 移除開頭的逗號
+                    if (line.charAt(matches.index) === ',') {
+                       // val 已經正確抓取，不需額外動作，但需注意正則邏輯
+                    }
+                    // 移除引號
+                    if (val && val.startsWith('"') && val.endsWith('"')) {
+                        val = val.slice(1, -1).replace(/""/g, '"');
+                    }
+                    if(val !== undefined) result.push(val.trim());
+                }
+                // 由於簡易正則可能會多抓一個空值，這裡做個簡單的 split 作為備案 (如果上面的太複雜)
+                // 針對您的 Google Sheet 格式，直接 split(',') 通常就夠用，除非課程名稱內有逗號
+                return line.split(','); 
+            });
+        }
+    </script>
+</body>
+</html>
