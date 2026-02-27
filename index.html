@@ -1,290 +1,51 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>報價生成器 (連 Letterhead)</title>
+    <title>VisionARi - 擴增實境 (AR) 平台</title>
     <style>
-        body {
-            font-family: 'Microsoft JhengHei', Arial, sans-serif;
-            background-color: #f4f4f9;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px;
-        }
-        .container {
-            background: white;
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            text-align: center;
-            max-width: 450px;
-            width: 100%;
-        }
-        h2 { color: #333; margin-bottom: 10px; }
-        p { color: #666; font-size: 0.95rem; margin-bottom: 25px; }
-        button {
-            background-color: #00695c;
-            color: white;
-            padding: 15px 32px;
-            font-size: 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: bold;
-            transition: background 0.3s;
-        }
-        button:hover { background-color: #004d40; }
-        button:disabled { background-color: #ccc; cursor: default; }
-        #status { margin-top: 15px; color: #555; font-size: 0.9rem; min-height: 20px; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; color: #333; }
+        header { background: #000; color: #fff; padding: 20px; text-align: center; }
+        .hero { padding: 40px 20px; text-align: center; background-color: #f4f4f4; }
+        .features { display: flex; flex-wrap: wrap; padding: 20px; gap: 20px; justify-content: center; }
+        .feature-box { background: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 8px; width: 300px; }
+        footer { background: #222; color: #fff; text-align: center; padding: 20px; margin-top: 40px; }
+        a.button { display: inline-block; padding: 10px 20px; background: #007bff; color: #fff; text-decoration: none; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>報價生成器</h2>
-        <p>包含公司抬頭 (Letterhead) 的單頁 Word 檔</p>
-        <button id="btn" onclick="generateQuote()">生成最新報價單</button>
-        <div id="status"></div>
+    <header>
+        <h1>VisionARi</h1>
+        <p>提供沉浸式擴增實境 (AR) 體驗的平台</p>
+    </header>
+
+    <div class="hero">
+        <h2>解鎖全新的學習體驗</h2>
+        <p>我們擁有超過 300+ 個擴增實境 (AR) 模組，幫助學生、教育工作者與專業人士在一般的 Android 與 iOS 設備上輕鬆使用 AR 技術。</p>
+        <a href="https://visionari.app/" target="_blank" class="button">了解更多 (前往官網)</a>
     </div>
 
-    <script>
-        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgpNUrOTp6zB9AtT5w7JJGV7rzyNiACFU4_Zji6JFflXhyyLbEoi1j247fzab4MkJ1YZlFxlZ-I7m9/pub?output=csv';
+    <div class="features">
+        <div class="feature-box">
+            <h3>豐富的模型庫 (Library)</h3>
+            <p>包含工程(如V6引擎)、科學(植物細胞)、歷史(博物館展覽)、藝術等多領域的 3D/AR 模型，讓學習更互動。</p>
+        </div>
+        <div class="feature-box">
+            <h3>多功能平台</h3>
+            <p>提供工作室(Create)、應用程式發布(Distribute) 以及數據分析(Analytics) 功能，無需專業技術背景即可輕鬆上手。</p>
+        </div>
+        <div class="feature-box">
+            <h3>教育實證</h3>
+            <p>與香港科技大學 (HKUST)、VTC 等多間頂尖學校及機構合作，證實能提升學生的參與度與知識吸收率。</p>
+        </div>
+    </div>
 
-        async function generateQuote() {
-            const btn = document.getElementById('btn');
-            const status = document.getElementById('status');
-            
-            btn.disabled = true;
-            status.innerText = "正在讀取 Google Sheet 資料...";
+    <footer>
+        <p>© VisionARi Limited 2023. All rights reserved.</p>
+        <p>Unit B, 12F, Hang Seng Causeway Bay Building, Causeway bay, Hong Kong</p>
+    </footer>
 
-            try {
-                const response = await fetch(CSV_URL);
-                const csvText = await response.text();
-                const rows = parseCSV(csvText);
-
-                // 取得最後一行資料
-                const validRows = rows.filter(r => r.length > 1 && r[0].trim() !== "");
-                if (validRows.length < 2) throw new Error("Google Sheet 無資料");
-                const lastRow = validRows[validRows.length - 1];
-
-                // 資料對應
-                const data = {
-                    idSuffix: lastRow[0], // A
-                    school: lastRow[1],   // B
-                    teacher: lastRow[2],  // C
-                    course: lastRow[3],   // D
-                    date: lastRow[4],     // E
-                    lessons: lastRow[5],  // F
-                    grade: lastRow[6],    // G
-                    price: lastRow[7],    // H
-                    total: lastRow[9]     // J
-                };
-
-                // 日期與編號生成
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const dateStr = `${yyyy}/${mm}/${dd}`;
-                const quoteNo = `Q-${yyyy}${mm}${dd}${data.idSuffix}`;
-
-                // Word 內容 (加入 Letterhead 設計)
-                const docContent = `
-                    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                    <head>
-                        <meta charset='utf-8'>
-                        <style>
-                            @page {
-                                size: 595.3pt 841.9pt; /* A4 Size */
-                                margin: 0.8in 0.8in 0.8in 0.8in; /* 頁邊距 */
-                            }
-                            body { font-family: 'Calibri', 'Microsoft JhengHei', sans-serif; font-size: 11pt; }
-                            
-                            /* Letterhead 樣式 */
-                            .company-name { font-size: 24pt; font-weight: bold; color: #2E74B5; margin: 0; }
-                            .company-info { font-size: 9pt; color: #555; line-height: 1.2; }
-                            .header-divider { border-bottom: 2px solid #2E74B5; margin-top: 10px; margin-bottom: 20px; }
-
-                            table { border-collapse: collapse; width: 100%; }
-                            td { vertical-align: top; padding: 2px; }
-                            
-                            .info-table td { padding-bottom: 4px; }
-                            
-                            .main-table { margin-top: 20px; border: 1px solid black; }
-                            .main-table th { border: 1px solid black; background-color: #D9D9D9; font-weight: bold; text-align: center; padding: 6px; }
-                            .main-table td { border: 1px solid black; padding: 6px; }
-                            
-                            .bold { font-weight: bold; }
-                            .right { text-align: right; }
-                            .center { text-align: center; }
-                            .signature-line { border-bottom: 1px solid black; width: 200px; display: block; margin-top: 50px; margin-bottom: 5px; }
-                        </style>
-                    </head>
-                    <body>
-                    
-                        <table style="width: 100%;">
-                            <tr>
-                                <td width="60%">
-                                    <div class="company-name">Pi Innovation</div>
-                                </td>
-                                <td width="40%" class="right company-info">
-                                    Unit B3, 4/F, Efficiency House,<br>
-                                    35 Tai Yau Street, San Po Kong, KLN, HK<br>
-                                    九龍新蒲崗大有街35號義發工業大廈4樓B3<br>
-                                    Tel: +852 6704 5711 | Email: info@pi-innovation.com.hk
-                                </td>
-                            </tr>
-                        </table>
-                        <div class="header-divider"></div>
-
-                        <div style="text-align: center; margin-bottom: 20px;">
-                            <span style="font-size: 20pt; font-weight: bold; text-decoration: underline;">QUOTATION</span>
-                        </div>
-
-                        <table class="info-table">
-                            <tr>
-                                <td width="12%" class="bold">To:</td>
-                                <td width="48%">${data.school}</td>
-                                <td width="15%" class="bold right">From:</td>
-                                <td width="25%" class="right">Harry Leung</td>
-                            </tr>
-                            <tr>
-                                <td class="bold">Attn:</td>
-                                <td>${data.teacher}</td>
-                                <td class="bold right">Date:</td>
-                                <td class="right">${dateStr}</td>
-                            </tr>
-                            <tr>
-                                <td></td>
-                                <td></td>
-                                <td class="bold right">Email:</td>
-                                <td class="right">harryleung@pi-innovation.com.hk</td>
-                            </tr>
-                            <tr>
-                                <td></td>
-                                <td></td>
-                                <td class="bold right">Quotation #:</td>
-                                <td class="right">${quoteNo}</td>
-                            </tr>
-                        </table>
-
-                        <br>
-                        <div>The following table:</div>
-
-                        <table class="main-table">
-                            <thead>
-                                <tr>
-                                    <th width="5%">No.</th>
-                                    <th width="20%">Items</th>
-                                    <th width="45%">Description</th>
-                                    <th width="12%">Unit Price<br>(HK$)</th>
-                                    <th width="6%">Qty</th>
-                                    <th width="12%">Sub Total<br>(HK$)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td class="center">1</td>
-                                    <td>${data.course}</td>
-                                    <td>
-                                        <span class="bold">課堂資料</span><br>
-                                        課堂日期：${data.date}<br>
-                                        課堂堂數：${data.lessons}堂<br>
-                                        課堂時間：待定<br>
-                                        每堂課時：1.5小時<br>
-                                        學生年級：${data.grade}<br>
-                                        學生人數：20人<br>
-                                        課堂內容：請參閱下頁課程內容<br>
-                                        <br>
-                                        <span class="bold">本公司可提供</span><br>
-                                        導師人數：1名導師及1名助教<br>
-                                        如需加堂或帶隊參賽，費用按每堂收費收取<br>
-                                        如需購買比賽相關材料/道具，費用將額外收取<br>
-                                        <br>
-                                        <span class="bold">需由貴校提供</span><br>
-                                        無人機教材<br>
-                                        平板電腦以供操控及編程無人機用途
-                                    </td>
-                                    <td class="center">${data.price}<br>(每堂)</td>
-                                    <td class="center">${data.lessons}<br>(堂)</td>
-                                    <td class="center">${data.total}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        <div style="margin-top: 20px;">
-                            <span class="bold" style="text-decoration: underline;">Remarks:</span>
-                            <ol style="margin-top: 5px; padding-left: 20px;">
-                                <li>Please sign and chop at the right concern space for the acceptance of the service/products</li>
-                                <li>This quotation is valid until 2 months after the issued date stated on this quotation</li>
-                            </ol>
-                        </div>
-
-                        <table style="margin-top: 40px;">
-                            <tr>
-                                <td width="50%" valign="bottom">
-                                    <div style="border-bottom: 1px solid black; width: 200px; margin-bottom: 5px;"></div>
-                                    <span class="bold">Confirmed & Accepted by</span><br>
-                                    Authorized Signature & Chop
-                                </td>
-                                <td width="50%" class="right" valign="top">
-                                    <div style="display: inline-block; text-align: left; width: 200px;">
-                                        <span class="bold">Prepared By</span>
-                                        <div class="signature-line"></div>
-                                        Harry Leung<br>
-                                        Director<br>
-                                        Date: ${dateStr}
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-
-                    </body>
-                    </html>
-                `;
-
-                // 下載
-                const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `Quotation_${quoteNo}.doc`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                status.innerText = "已成功下載報價單！";
-                status.style.color = "green";
-
-            } catch (err) {
-                console.error(err);
-                status.innerText = "錯誤: " + err.message;
-                status.style.color = "red";
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        // CSV 解析
-        function parseCSV(text) {
-            const rows = [];
-            text.split('\n').forEach(line => {
-                const row = [];
-                let inQuote = false;
-                let buffer = '';
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    if (char === '"') { inQuote = !inQuote; } 
-                    else if (char === ',' && !inQuote) { row.push(buffer.trim()); buffer = ''; } 
-                    else { buffer += char; }
-                }
-                row.push(buffer.trim());
-                rows.push(row);
-            });
-            return rows.map(r => r.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"')));
-        }
-    </script>
 </body>
 </html>
